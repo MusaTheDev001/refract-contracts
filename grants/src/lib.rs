@@ -58,6 +58,14 @@ pub enum GrantsError {
     NotRecipient,
     /// There is no confirmed-but-unclaimed amount to release.
     NothingToClaim,
+    /// The sponsor revoked sponsorship. Already-credited amounts stay credited.
+    SponsorshipRevoked,
+    /// This epoch's disbursements would pass the sponsor ceiling.
+    SponsorCeilingReached,
+    /// The payout destination is not the grant recipient.
+    DestinationMismatch,
+    /// Sponsor ceiling or epoch length was not a positive value.
+    InvalidSponsorConfig,
 }
 
 /// A single milestone within a grant.
@@ -94,6 +102,18 @@ pub struct RefractGrants {
     next_grant_id: GrantId,
     /// Stored grants keyed by id.
     grants: BTreeMap<GrantId, Grant>,
+    /// Multisig account that may revoke claimant sponsorship.
+    sponsor: Option<Address>,
+    /// Revocation flag. Does not claw back amounts already disbursed.
+    sponsorship_revoked: bool,
+    /// Per-epoch ceiling on sponsored disbursements.
+    sponsor_ceiling: i128,
+    /// Length of a spend epoch, in the same units the caller passes as `epoch`.
+    sponsor_epoch: u64,
+    /// Amount disbursed under sponsorship during the current epoch.
+    epoch_spend: i128,
+    /// True once epoch spend reaches 80% of the ceiling.
+    ceiling_approached: bool,
 }
 
 impl RefractGrants {
@@ -103,6 +123,12 @@ impl RefractGrants {
             governance,
             next_grant_id: 0,
             grants: BTreeMap::new(),
+            sponsor: None,
+            sponsorship_revoked: false,
+            sponsor_ceiling: 0,
+            sponsor_epoch: 0,
+            epoch_spend: 0,
+            ceiling_approached: false,
         }
     }
 
@@ -249,6 +275,94 @@ impl RefractGrants {
         }
 
         Ok(amount)
+    }
+
+    /// Governance names the multisig sponsor and the per-epoch disbursement ceiling.
+    pub fn set_sponsor(
+        &mut self,
+        caller: Address,
+        sponsor: Address,
+        ceiling: i128,
+        epoch: u64,
+    ) -> Result<(), GrantsError> {
+        self.require_governance(caller)?;
+        if ceiling <= 0 || epoch == 0 {
+            return Err(GrantsError::InvalidSponsorConfig);
+        }
+        self.sponsor = Some(sponsor);
+        self.sponsor_ceiling = ceiling;
+        self.sponsor_epoch = epoch;
+        self.sponsorship_revoked = false;
+        self.epoch_spend = 0;
+        Ok(())
+    }
+
+    /// The sponsor revokes sponsorship. Amounts already returned by [`Self::claim`]
+    /// or [`Self::disburse`] stay with the recipient.
+    pub fn revoke_sponsorship(&mut self, sponsor: Address) -> Result<(), GrantsError> {
+        if self.sponsor != Some(sponsor) {
+            return Err(GrantsError::Unauthorized);
+        }
+        self.sponsorship_revoked = true;
+        Ok(())
+    }
+
+    /// Recipient pull of a confirmed grant. `destination` must be the recipient,
+    /// so a sponsor relaying the signed call cannot redirect funds.
+    pub fn disburse(
+        &mut self,
+        recipient: Address,
+        grant_id: GrantId,
+        destination: Address,
+        epoch: u64,
+    ) -> Result<i128, GrantsError> {
+        if destination != recipient {
+            return Err(GrantsError::DestinationMismatch);
+        }
+        if self.sponsorship_revoked {
+            return Err(GrantsError::SponsorshipRevoked);
+        }
+        let grant = self
+            .grants
+            .get(&grant_id)
+            .ok_or(GrantsError::GrantNotFound)?;
+        if grant.recipient != recipient {
+            return Err(GrantsError::NotRecipient);
+        }
+        let amount = grant.claimable;
+        if amount <= 0 {
+            return Err(GrantsError::NothingToClaim);
+        }
+        if self.sponsor.is_some() && epoch != self.sponsor_epoch {
+            self.sponsor_epoch = epoch;
+            self.epoch_spend = 0;
+            self.ceiling_approached = false;
+        }
+        self.note_sponsored_amount(amount)?;
+        self.claim(recipient, grant_id)
+    }
+
+    /// Whether the latest disbursement crossed 80% of the sponsor ceiling.
+    pub fn sponsor_ceiling_approached(&self) -> bool {
+        self.ceiling_approached
+    }
+
+    /// Charge `amount` against the sponsor ceiling.
+    fn note_sponsored_amount(&mut self, amount: i128) -> Result<(), GrantsError> {
+        if self.sponsor.is_none() {
+            return Ok(());
+        }
+        let next = self
+            .epoch_spend
+            .checked_add(amount)
+            .ok_or(GrantsError::SponsorCeilingReached)?;
+        if next > self.sponsor_ceiling {
+            return Err(GrantsError::SponsorCeilingReached);
+        }
+        let approaching = next.saturating_mul(5) >= self.sponsor_ceiling.saturating_mul(4);
+        self.epoch_spend = next;
+        self.ceiling_approached = approaching;
+        Ok(())
     }
 
     fn require_governance(&self, caller: Address) -> Result<(), GrantsError> {
@@ -410,6 +524,67 @@ mod tests {
         assert_eq!(
             grants.confirm_milestone(GOVERNANCE, id, 5),
             Err(GrantsError::InvalidMilestoneIndex)
+        );
+    }
+
+    #[test]
+    fn relayed_disburse_pays_only_the_recipient() {
+        let mut grants = contract();
+        grants.set_sponsor(GOVERNANCE, 9, 1_000, 1).unwrap();
+        let id = grants
+            .create_grant(GOVERNANCE, RECIPIENT, 100, vec![100])
+            .unwrap();
+        grants.confirm_milestone(GOVERNANCE, id, 0).unwrap();
+        assert_eq!(grants.disburse(RECIPIENT, id, RECIPIENT, 1), Ok(100));
+        assert_eq!(grants.claimable(id), Some(0));
+    }
+
+    #[test]
+    fn relayed_disburse_rejects_a_redirected_destination() {
+        let mut grants = contract();
+        let id = grants
+            .create_grant(GOVERNANCE, RECIPIENT, 100, vec![100])
+            .unwrap();
+        grants.confirm_milestone(GOVERNANCE, id, 0).unwrap();
+        assert_eq!(
+            grants.disburse(RECIPIENT, id, STRANGER, 1),
+            Err(GrantsError::DestinationMismatch)
+        );
+        assert_eq!(grants.claimable(id), Some(100));
+    }
+
+    #[test]
+    fn sponsor_revocation_blocks_a_later_disburse_and_keeps_the_credit() {
+        let mut grants = contract();
+        grants.set_sponsor(GOVERNANCE, 9, 1_000, 1).unwrap();
+        let id = grants
+            .create_grant(GOVERNANCE, RECIPIENT, 200, vec![100, 100])
+            .unwrap();
+        grants.confirm_milestone(GOVERNANCE, id, 0).unwrap();
+        assert_eq!(grants.disburse(RECIPIENT, id, RECIPIENT, 1), Ok(100));
+        grants.revoke_sponsorship(9).unwrap();
+        grants.confirm_milestone(GOVERNANCE, id, 1).unwrap();
+        assert_eq!(
+            grants.disburse(RECIPIENT, id, RECIPIENT, 1),
+            Err(GrantsError::SponsorshipRevoked)
+        );
+        assert_eq!(grants.claimable(id), Some(100));
+    }
+
+    #[test]
+    fn sponsor_ceiling_rejects_the_disburse_and_flags_the_approach() {
+        let mut grants = contract();
+        grants.set_sponsor(GOVERNANCE, 9, 100, 1).unwrap();
+        let id = grants
+            .create_grant(GOVERNANCE, RECIPIENT, 150, vec![80, 70])
+            .unwrap();
+        grants.confirm_milestone(GOVERNANCE, id, 0).unwrap();
+        assert_eq!(grants.disburse(RECIPIENT, id, RECIPIENT, 1), Ok(80));
+        assert!(grants.sponsor_ceiling_approached());
+        grants.confirm_milestone(GOVERNANCE, id, 1).unwrap();
+        assert_eq!(
+            grants.disburse(RECIPIENT, id, RECIPIENT, 1),
+            Err(GrantsError::SponsorCeilingReached)
         );
     }
 }
