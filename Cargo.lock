@@ -1050,6 +1050,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "refract-governance"
+version = "0.1.0"
+dependencies = [
+ "proptest",
+ "refract-interfaces",
+ "refract-testutils",
+ "soroban-sdk",
+]
+
+[[package]]
 name = "refract-backstop"
 version = "0.1.0"
 dependencies = [
@@ -1073,44 +1083,7 @@ dependencies = [
 name = "refract-bounty"
 version = "0.1.0"
 dependencies = [
- "refract-testutils",
- "soroban
- "soroban-sdk",
-]
-
-[[package]]
-name = "refract-governance"
-version = "0.1.0"
-dependencies = [
- "proptest",
  "refract-interfaces",
- "refract-testutils",
- "soroban-sdk",
-]
-
-[[package]]
-name = "refract-bounty"
-version = "0.1.0"
-dependencies = [
- "refract-interfaces",
- "refract-testutils",
- "soroban-sdk",
- "soroban-sdk",
-]
-
-[[package]]
-name = "refract-grants"
-version = "0.1.0"
-dependencies = [
- "refract-interfaces",
- "refract-testutils",
- "soroban-sdk",
-]
-
-[[package]]
-name = "refract-bounty"
-version = "0.1.0"
-dependencies = [
  "refract-testutils",
  "soroban-sdk",
 ]
@@ -1144,48 +1117,29 @@ dependencies = [
 ]
 
 [[package]]
-name = "refract-interfaces"
+name = "refract-payout-registry"
 version = "0.1.0"
 dependencies = [
  "soroban-sdk",
 ]
 
 [[package]]
-name = "refract-multisig"
+name = "refract-params"
 version = "0.1.0"
 dependencies = [
+ "refract-testutils",
  "soroban-sdk",
 ]
 
 [[package]]
-name = "refract-oracle"
+name = "refract-policy"
 version = "0.1.0"
 dependencies = [
+ "proptest",
  "soroban-sdk",
 ]
 
-[[pac
- "soroban-sdk",
-]
-
-[[package]]
-name = "refract-incident-response"
-version = "0.1.0"
-dependencies = [
- "refract-oracle",
- "refract-policy",
- "refract-pool",
- "soroban-sdk",
-]
-
-[[package]]
-name = "refract-interfaces"
-version = "0.1.0"
-dependencies = [
- "soroban-sdk",
-]
-
-[[package]]
+[[p
 name = "refract-multisig"
 version = "0.1.0"
 dependencies = [
@@ -1208,6 +1162,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "refract-payout-registry"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
+]
+ "soroban-sdk",
+]
+
+[[package]]
 name = "refract-policy"
 version = "0.1.0"
 dependencies = [
@@ -1220,8 +1183,19 @@ name = "refract-pool"
 version = "0.1.0"
 dependencies = [
  "proptest",
- "refract-backstop",
- "refract-interfaces",
+name = "refract-params"
+version = "0.1.0"
+dependencies = [
+ "refract-testutils",
+ "soroban-sdk",
+]
+
+[[package]]
+name = "refract-payout-registry"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
+]
  "refract-oracle",
  "refract-policy",
  "soroban-sdk",
@@ -1256,8 +1230,6 @@ version = "0.1.0"
 dependencies = [
  "soroban-sdk",
 ]
- "soroban-sdk",
-]
 
 [[package]]
 name = "refract-vetoken"
@@ -1267,7 +1239,7 @@ dependencies = [
  "refract-interfaces",
  "refract-testutils",
  "soroban-sdk",
- "soroban-sdk",
+]
  "soroban-sdk",
 ]
 

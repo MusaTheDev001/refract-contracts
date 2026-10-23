@@ -17,6 +17,7 @@ members = [
     "registry",
     "treasury",
     "integration",
+    "payout_registry",
 ]
 
 [workspace.dependencies]
