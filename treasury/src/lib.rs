@@ -1,5 +1,7 @@
 #![no_std]
 
+extern crate alloc;
+
 use soroban_sdk::{
     contract, contractimpl, contracttype, symbol_short, token, Address, BytesN, Env,
 };
@@ -9,6 +11,8 @@ pub mod payments;
 mod payments_test;
 
 use payments::{PaymentRequest, PaymentStatus, TreasuryError};
+
+pub mod challenge;
 
 /// Storage keys for the treasury contract.
 #[contracttype]
