@@ -13,6 +13,8 @@ pub mod disclosure;
 
 pub mod wind_down;
 
+pub mod escrow_refill;
+
 /// Storage keys for the bounty escrow.
 #[contracttype]
 #[derive(Clone)]

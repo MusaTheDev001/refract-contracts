@@ -14,6 +14,8 @@ use payments::{PaymentRequest, PaymentStatus, TreasuryError};
 
 pub mod challenge;
 
+pub mod reserve;
+
 /// Storage keys for the treasury contract.
 #[contracttype]
 #[derive(Clone)]
