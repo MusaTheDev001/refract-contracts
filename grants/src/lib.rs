@@ -24,8 +24,12 @@
 //! mechanics once a milestone is confirmed on-chain.
 
 pub mod bond;
+pub mod budget;
+pub mod compensation;
 pub mod delegation;
 pub mod rate_limit;
+pub mod reviewer_stake;
+pub mod scoring;
 
 use std::collections::BTreeMap;
 
