@@ -9,6 +9,8 @@ pub mod evidence;
 
 use evidence::{EvidenceEntry, ReportManifest, VerificationStatus, MAX_EVIDENCE_ENTRIES};
 
+pub mod disclosure;
+
 /// Storage keys for the bounty escrow.
 #[contracttype]
 #[derive(Clone)]
