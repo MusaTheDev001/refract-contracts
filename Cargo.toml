@@ -1,7 +1,15 @@
 [workspace]
 resolver = "2"
 members = [
-    "interfaces",
+    "common",
+    "shared",
+    "registry",
+    "backstop",
+    "bounty",
+    "grants",
+    "treasury",
+    "integration",
+    "payout_registry",
     "pool",
     "policy",
     "oracle",
@@ -21,7 +29,7 @@ members = [
 ]
 
 [workspace.dependencies]
-soroban-sdk = { version = "21.0.0", features = ["alloc"] }
+soroban-sdk = { version = "21.0.0" }
 proptest = "1.5.0"
 
 [profile.release]
